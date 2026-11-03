@@ -1,94 +1,131 @@
-// 1. Select the DOM elements
-const minutesDisplay = document.getElementById("minutes");
-const secondsDisplay = document.getElementById("seconds");
-const startButton = document.getElementById("start-btn");
-const resetButton = document.getElementById("reset-btn");
-const modeButtons = document.querySelectorAll(".mode-btn");
+document.addEventListener('DOMContentLoaded', () => {
+    // Select HTML elements for user name customization
+    const pageTitle = document.getElementById('page-title');
+    const nameInput = document.getElementById('name-input');
+    const saveNameBtn = document.getElementById('save-name-btn');
+    const nameContainer = document.getElementById('name-input-container');
 
-// 2. Define state variables
-let timeLeft = 3000; // 50 minutes in seconds (50 * 60)
-let timerId = null;  // Keeps track of the interval so we can pause/clear it
-let isRunning = false;
+    // Select HTML elements for timer functionality
+    const minutesDisplay = document.getElementById('minutes');
+    const secondsDisplay = document.getElementById('seconds');
+    const startBtn = document.getElementById('start-btn');
+    const resetBtn = document.getElementById('reset-btn');
+    const modeBtns = document.querySelectorAll('.mode-btn');
 
-modeButtons.forEach(button =>{
-    button.addEventListener("click", function(){
-        clearInterval(timerId);
-        isRunning = false;
-        startButton.textContent = "Start";
-        modeButtons.forEach(btn => btn.classList.remove("active"));
-        this.classList.add("active");
-        const seconds = parseInt(this.getAttribute("data-time"));
-        timeLeft = seconds;
-        updateDisplay();
-    });
-});
+    // Timer state variables
+    let countdown;
+    let timeLeft = 3000; // Default to 50 minutes (in seconds)
+    let isRunning = false;
 
-// 3. Helper function to update the HTML display
-function updateDisplay() {
-    const minutes = Math.floor(timeLeft / 60);
-    const seconds = timeLeft % 60;
+    // --- User Name Feature Logic ---
 
-    const formattedMinutes = String(minutes).padStart(2, "0");
-    const formattedSeconds = String(seconds).padStart(2, "0");
-
-    // Only trigger the bounce on seconds if the number actually changes
-    if (secondsDisplay.textContent !== formattedSeconds) {
-        secondsDisplay.textContent = formattedSeconds;
-        
-        // Restart the CSS animation
-        secondsDisplay.classList.remove("bounce");
-        void secondsDisplay.offsetWidth; // Force a browser reflow/repaint to restart animation
-        secondsDisplay.classList.add("bounce");
-    }
-
-    // Only trigger the bounce on minutes when a full minute flips
-    if (minutesDisplay.textContent !== formattedMinutes) {
-        minutesDisplay.textContent = formattedMinutes;
-        
-        minutesDisplay.classList.remove("bounce");
-        void minutesDisplay.offsetWidth;
-        minutesDisplay.classList.add("bounce");
-    }
-}
-
-// 4. Function to handle the countdown tick
-function startTimer() {
-    if (isRunning) return; // Prevent multiple intervals from stacking if clicked twice
-
-    isRunning = true;
-    startButton.textContent = "PAUSE"; // Optional: Change button text
-
-    timerId = setInterval(function() {
-        if (timeLeft > 0) {
-            timeLeft--;
-            updateDisplay();
+    // Function to update header text and hide the input container once set
+    function applyUserName(name) {
+        if (name && name.trim() !== '') {
+            pageTitle.textContent = `${name}'s Pomodoro Space`;
+            if (nameContainer) {
+                nameContainer.style.display = 'none';
+            }
         } else {
-            clearInterval(timerId);
-            isRunning = false;
-            alert("Pomodoro session complete!");
-            startButton.textContent = "START";
+            pageTitle.textContent = 'Pomodoro Space';
         }
-    }, 1000); // Runs every 1000ms (1 second)
-}
-
-// 5. Attach the event listener to the Start button
-startButton.addEventListener("click", function() {
-    if (!isRunning) {
-        startTimer();
-    } else {
-        // Simple pause functionality
-        clearInterval(timerId);
-        isRunning = false;
-        startButton.textContent = "START";
     }
-});
-resetButton.addEventListener("click", function() {
-    clearInterval(timerId);            // Stop any active countdown loop
-    isRunning = false;                 // Mark the timer as not running
-    timeLeft = 3000;                   // Reset time back to 25 minutes (1500 seconds)
-    updateDisplay();                   // Refresh the screen numbers
-    startButton.textContent = "START";   // Reset the start button text
-});
 
-// Initialize the display on page load
-updateDisplay();
+    // 1. Check if a valid name was previously saved (ignoring accidental single letters like "f")
+    const savedName = localStorage.getItem('pomodoroUserName');
+    if (savedName && savedName.trim().length > 1) {
+        applyUserName(savedName);
+    } else {
+        // Automatically clear out bad or single-letter data from storage
+        localStorage.removeItem('pomodoroUserName');
+    }
+
+    // 2. When the user clicks "Set Name"
+    if (saveNameBtn && nameInput) {
+        saveNameBtn.addEventListener('click', () => {
+            const enteredName = nameInput.value;
+            if (enteredName && enteredName.trim().length > 1) {
+                localStorage.setItem('pomodoroUserName', enteredName);
+                applyUserName(enteredName);
+            } else {
+                alert('Please enter a valid name with at least 2 characters.');
+            }
+        });
+    }
+
+    // 3. Optional: Clear name and bring back the input box if a reset button exists
+    const resetNameBtn = document.getElementById('reset-name-btn');
+    if (resetNameBtn) {
+        resetNameBtn.addEventListener('click', () => {
+            localStorage.removeItem('pomodoroUserName');
+            location.reload();
+        });
+    }
+
+    // --- Timer Feature Logic ---
+
+    function updateDisplay() {
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        minutesDisplay.textContent = String(minutes).padStart(2, '0');
+        secondsDisplay.textContent = String(seconds).padStart(2, '0');
+    }
+
+    function startTimer() {
+        if (!isRunning) {
+            isRunning = true;
+            startBtn.textContent = 'Pause';
+            
+            countdown = setInterval(() => {
+                if (timeLeft > 0) {
+                    timeLeft--;
+                    updateDisplay();
+                } else {
+                    clearInterval(countdown);
+                    isRunning = false;
+                    startBtn.textContent = 'Start';
+                    alert('Pomodoro session completed!');
+                }
+            }, 1000);
+        } else {
+            clearInterval(countdown);
+            isRunning = false;
+            startBtn.textContent = 'Start';
+        }
+    }
+
+    function resetTimer() {
+        clearInterval(countdown);
+        isRunning = false;
+        startBtn.textContent = 'Start';
+        
+        // Find active mode button to reset to the correct duration
+        const activeBtn = document.querySelector('.mode-btn.active');
+        if (activeBtn) {
+            timeLeft = parseInt(activeBtn.getAttribute('data-time'));
+        }
+        updateDisplay();
+    }
+
+    // Event Listeners for Timer Buttons
+    if (startBtn) startBtn.addEventListener('click', startTimer);
+    if (resetBtn) resetBtn.addEventListener('click', resetTimer);
+
+    // Mode Selector Logic (Switching between Pomodoro and Break)
+    modeBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            modeBtns.forEach(b => b.classList.remove('active'));
+            e.target.classList.add('active');
+            
+            clearInterval(countdown);
+            isRunning = false;
+            startBtn.textContent = 'Start';
+            
+            timeLeft = parseInt(e.target.getAttribute('data-time'));
+            updateDisplay();
+        });
+    });
+
+    // Initialize display on page load
+    updateDisplay();
+});
